@@ -662,4 +662,92 @@ float KeyFrame::ComputeSceneMedianDepth(const int q)
     return vDepths[(vDepths.size()-1)/q];
 }
 
+float KeyFrame::ComputeSceneMinDepth()
+{
+	cout << "here..." << endl;
+	vector<MapPoint*> vpMapPoints;
+	cv::Mat Tcw_;
+	{
+		unique_lock<mutex> lock(mMutexFeatures);
+		unique_lock<mutex> lock2(mMutexPose);
+		vpMapPoints = mvpMapPoints;
+		Tcw_ = Tcw.clone();
+	}
+
+	vector<float> vDepths;
+	vDepths.reserve(N);
+	cv::Mat Rcw2 = Tcw_.row(2).colRange(0, 3);
+	Rcw2 = Rcw2.t();
+	float zcw = Tcw_.at<float>(2, 3);
+	for (int i = 0; i<N; i++)
+	{
+		if (mvpMapPoints[i])
+		{
+			MapPoint* pMP = mvpMapPoints[i];
+			cv::Mat x3Dw = pMP->GetWorldPos();
+			float z = Rcw2.dot(x3Dw) + zcw;
+			cout << "z: " << z << endl;
+			vDepths.push_back(z);
+		}
+	}
+
+	float minDepth = *min_element(vDepths.begin(), vDepths.end());
+
+	return minDepth;
+}
+
+float KeyFrame::ComputeSceneLikelyMinDepth()
+{
+	cout << "here...likely min depth" << endl;
+	vector<MapPoint*> vpMapPoints;
+	cv::Mat Tcw_;
+	{
+		unique_lock<mutex> lock(mMutexFeatures);
+		unique_lock<mutex> lock2(mMutexPose);
+		vpMapPoints = mvpMapPoints;
+		Tcw_ = Tcw.clone();
+	}
+
+	vector<float> vDepths;
+	vDepths.reserve(N);
+	cv::Mat Rcw2 = Tcw_.row(2).colRange(0, 3);
+	Rcw2 = Rcw2.t();
+	float zcw = Tcw_.at<float>(2, 3);
+	for (int i = 0; i<N; i++)
+	{
+		if (mvpMapPoints[i])
+		{
+			MapPoint* pMP = mvpMapPoints[i];
+			cv::Mat x3Dw = pMP->GetWorldPos();
+			float z = Rcw2.dot(x3Dw) + zcw;
+			cout << "z: " << z << endl;
+			vDepths.push_back(z);
+		}
+	}
+
+	sort(vDepths.begin(), vDepths.end());
+
+	vector<float> vDepthsDelta;
+	vDepthsDelta.reserve(N-1);
+	for (int i = 0; i<N-1; i++)
+	{
+		vDepthsDelta.push_back(vDepths[i+1] - vDepths[i]);
+	}
+	float median = vDepths[(vDepths.size() - 1) / 2];
+	float minDelta = 0.01 * median;
+
+	for (int i = 0; i < N - 1; i++)
+	{
+		if (vDepthsDelta[i] < minDelta)
+		{
+			cout << "likely min depth:" << vDepths[i] << endl;
+			return vDepths[i];
+		}
+	}
+
+	cout << "likely min depth:" << vDepths[N-1] << endl;
+
+	return vDepths[N - 1];
+}
+
 } //namespace ORB_SLAM

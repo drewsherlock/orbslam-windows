@@ -43,10 +43,11 @@ using namespace std;
 namespace ORB_SLAM2
 {
 
-Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
+Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const float minDistanceToObject):
     mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
     mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys), mpViewer(NULL),
-    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0)
+    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0),
+	mMinDistanceToObject(minDistanceToObject)
 {
     // Load camera parameters from settings file
 
@@ -145,7 +146,6 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
         else
             mDepthMapFactor = 1.0f/mDepthMapFactor;
     }
-
 }
 
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
@@ -682,23 +682,39 @@ void Tracking::CreateInitialMapMonocular()
 
     // Bundle Adjustment
     cout << "New Map created with " << mpMap->MapPointsInMap() << " points" << endl;
+	cout << "mMinDistanceToObject: " << mMinDistanceToObject << " points" << endl;
 
     Optimizer::GlobalBundleAdjustemnt(mpMap,20);
 
-    // Set median depth to 1
-    float medianDepth = pKFini->ComputeSceneMedianDepth(2);
-    float invMedianDepth = 1.0f/medianDepth;
-
-    if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<100)
-    {
-        cout << "Wrong initialization, reseting..." << endl;
-        Reset();
-        return;
-    }
+	float invScale = 1;
+	if (mMinDistanceToObject < 0)
+	{
+		// Set median depth to 1
+		float medianDepth = pKFini->ComputeSceneMedianDepth(2);
+		invScale = 1.0f / medianDepth;
+		if (medianDepth < 0 || pKFcur->TrackedMapPoints(1) < 100)
+		{
+			cout << "Wrong initialization, reseting..." << endl;
+			Reset();
+			return;
+		}
+	}
+	else
+	{
+		float minDepth = pKFini->ComputeSceneLikelyMinDepth();
+		invScale = mMinDistanceToObject / minDepth;
+		cout << "here a..." << endl;
+		if (minDepth < 0 || pKFcur->TrackedMapPoints(1) < 100)
+		{
+			cout << "Wrong initialization, reseting..." << endl;
+			Reset();
+			return;
+		}
+	}
 
     // Scale initial baseline
     cv::Mat Tc2w = pKFcur->GetPose();
-    Tc2w.col(3).rowRange(0,3) = Tc2w.col(3).rowRange(0,3)*invMedianDepth;
+    Tc2w.col(3).rowRange(0,3) = Tc2w.col(3).rowRange(0,3)*invScale;
     pKFcur->SetPose(Tc2w);
 
     // Scale points
@@ -708,7 +724,7 @@ void Tracking::CreateInitialMapMonocular()
         if(vpAllMapPoints[iMP])
         {
             MapPoint* pMP = vpAllMapPoints[iMP];
-            pMP->SetWorldPos(pMP->GetWorldPos()*invMedianDepth);
+            pMP->SetWorldPos(pMP->GetWorldPos()*invScale);
         }
     }
 

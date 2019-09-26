@@ -107,6 +107,8 @@ public:
 
     // Compute Scene Depth (q=2 median). Used in monocular.
     float ComputeSceneMedianDepth(const int q);
+	float ComputeSceneMinDepth();
+	float ComputeSceneLikelyMinDepth();
 
     static bool weightComp( int a, int b){
         return a>b;
