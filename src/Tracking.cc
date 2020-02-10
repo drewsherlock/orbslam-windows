@@ -43,11 +43,11 @@ using namespace std;
 namespace ORB_SLAM2
 {
 
-Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const float minDistanceToObject):
+Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const float minDistanceToObject, const string& strScalingType):
     mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
     mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys), mpViewer(NULL),
     mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0),
-	mMinDistanceToObject(minDistanceToObject)
+	mMinDistanceToObject(minDistanceToObject), mStrScalingType(strScalingType)
 {
     // Load camera parameters from settings file
 
@@ -687,7 +687,7 @@ void Tracking::CreateInitialMapMonocular()
     Optimizer::GlobalBundleAdjustemnt(mpMap,20);
 
 	float invScale = 1;
-	if (mMinDistanceToObject < 0)
+	if (mStrScalingType == "Median")
 	{
 		// Set median depth to 1
 		float medianDepth = pKFini->ComputeSceneMedianDepth(2);
@@ -699,9 +699,21 @@ void Tracking::CreateInitialMapMonocular()
 			return;
 		}
 	}
-	else
+	else if(mStrScalingType == "Likely")
 	{
 		float minDepth = pKFini->ComputeSceneLikelyMinDepth();
+		invScale = mMinDistanceToObject / minDepth;
+		cout << "here a..." << endl;
+		if (minDepth < 0 || pKFcur->TrackedMapPoints(1) < 100)
+		{
+			cout << "Wrong initialization, reseting..." << endl;
+			Reset();
+			return;
+		}
+	}
+	else if (mStrScalingType == "Min") {
+
+		float minDepth = pKFini->ComputeSceneMinDepth();
 		invScale = mMinDistanceToObject / minDepth;
 		cout << "here a..." << endl;
 		if (minDepth < 0 || pKFcur->TrackedMapPoints(1) < 100)
