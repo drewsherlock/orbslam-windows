@@ -109,6 +109,7 @@ public:
     float ComputeSceneMedianDepth(const int q);
 	float ComputeSceneMinDepth();
 	float ComputeSceneLikelyMinDepth();
+	float KeyFrame::ComputeSceneTagDepth(const float &x, const float &y);
 
     static bool weightComp( int a, int b){
         return a>b;

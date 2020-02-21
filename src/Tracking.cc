@@ -43,14 +43,12 @@ using namespace std;
 namespace ORB_SLAM2
 {
 
-Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const float minDistanceToObject, const string& strScalingType):
+Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
     mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
     mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys), mpViewer(NULL),
-    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0),
-	mMinDistanceToObject(minDistanceToObject), mStrScalingType(strScalingType)
-{
+    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0){
     // Load camera parameters from settings file
-
+	cout << "Scaling in Tracking " << mScalingType << endl;
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
     float fy = fSettings["Camera.fy"];
@@ -278,10 +276,12 @@ void Tracking::Track()
 
     if(mState==NOT_INITIALIZED)
     {
+		cout << "NOT INITIALIZED #################" << endl;
         if(mSensor==System::STEREO || mSensor==System::RGBD)
             StereoInitialization();
         else
             MonocularInitialization();
+		    cout << "MonocularInitialization #################" << endl;
 
         mpFrameDrawer->Update(this);
 
@@ -290,6 +290,7 @@ void Tracking::Track()
     }
     else
     {
+		cout << "IF IT IS INITIALIZED #################" << endl;
         // System is initialized. Track Frame.
         bool bOK;
 
@@ -565,6 +566,7 @@ void Tracking::MonocularInitialization()
 
     if(!mpInitializer)
     {
+		cout << "mpInitializer ###################" << endl;
         // Set Reference Frame
         if(mCurrentFrame.mvKeys.size()>100)
         {
@@ -586,6 +588,7 @@ void Tracking::MonocularInitialization()
     }
     else
     {
+		cout << "mpInitializer ELSE STATMENT ###################" << endl;
         // Try to initialize
         if((int)mCurrentFrame.mvKeys.size()<=100)
         {
@@ -628,9 +631,13 @@ void Tracking::MonocularInitialization()
             Rcw.copyTo(Tcw.rowRange(0,3).colRange(0,3));
             tcw.copyTo(Tcw.rowRange(0,3).col(3));
             mCurrentFrame.SetPose(Tcw);
-
+			cout << "CreateInitialMapMonocular YEAH ###################" << endl;
             CreateInitialMapMonocular();
-        }
+			
+		}
+		else {
+			cout << "CANOT CREATE " << endl;
+		}
     }
 }
 
@@ -687,7 +694,8 @@ void Tracking::CreateInitialMapMonocular()
     Optimizer::GlobalBundleAdjustemnt(mpMap,20);
 
 	float invScale = 1;
-	if (mStrScalingType == "Median")
+	cout << "Scaling type in create map init " << mScalingType << endl;
+	if (mScalingType == MEDIAN)
 	{
 		// Set median depth to 1
 		float medianDepth = pKFini->ComputeSceneMedianDepth(2);
@@ -699,10 +707,11 @@ void Tracking::CreateInitialMapMonocular()
 			return;
 		}
 	}
-	else if(mStrScalingType == "Likely")
+	else if(mScalingType == LIKELY)
 	{
 		float minDepth = pKFini->ComputeSceneLikelyMinDepth();
 		invScale = mMinDistanceToObject / minDepth;
+		
 		cout << "here a..." << endl;
 		if (minDepth < 0 || pKFcur->TrackedMapPoints(1) < 100)
 		{
@@ -711,7 +720,7 @@ void Tracking::CreateInitialMapMonocular()
 			return;
 		}
 	}
-	else if (mStrScalingType == "Min") {
+	else if (mScalingType == MIN) {
 
 		float minDepth = pKFini->ComputeSceneMinDepth();
 		invScale = mMinDistanceToObject / minDepth;
@@ -722,6 +731,18 @@ void Tracking::CreateInitialMapMonocular()
 			Reset();
 			return;
 		}
+	}
+	else if (mScalingType == TAG) {
+
+			float depth = pKFini->ComputeSceneTagDepth(mTag_centre_x, mTag_centre_y);
+			invScale = mMinDistanceToObject / depth;
+			cout << "here a..." << endl;
+			if (depth < 0 || pKFcur->TrackedMapPoints(1) < 100)
+			{
+				cout << "Wrong initialization, reseting..." << endl;
+				Reset();
+				return;
+			}
 	}
 
     // Scale initial baseline
@@ -1531,9 +1552,7 @@ bool Tracking::Relocalization()
 
 void Tracking::Reset()
 {
-
-    cout << "System Reseting" << endl;
-    if(mpViewer)
+	if(mpViewer)
     {
         mpViewer->RequestStop();
         while(!mpViewer->isStopped())
@@ -1575,6 +1594,14 @@ void Tracking::Reset()
 
     if(mpViewer)
         mpViewer->Release();
+}
+
+void Tracking::SetScalingParams(const float minDistanceToObject, eScalingType scalingType, float tag_centre_x, float tag_centre_y)
+{
+	mMinDistanceToObject = minDistanceToObject;
+	mScalingType = scalingType;
+	mTag_centre_x = tag_centre_x;
+	mTag_centre_y = tag_centre_y;
 }
 
 void Tracking::ChangeCalibration(const string &strSettingPath)

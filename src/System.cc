@@ -49,17 +49,17 @@ namespace ORB_SLAM2
 {
 
 System::System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor,
-               const bool bUseViewer, const float minDistanceToObject, const string& strScalingType):mSensor(sensor), mpViewer(static_cast<Viewer*>(NULL)), mbReset(false),mbActivateLocalizationMode(false),
-        mbDeactivateLocalizationMode(false)
+               const bool bUseViewer):mSensor(sensor), mpViewer(static_cast<Viewer*>(NULL)), mbReset(false),mbActivateLocalizationMode(false), mbDeactivateLocalizationMode(false)
 {
     // Output welcome message
     cout << endl <<
     "ORB-SLAM2 Copyright (C) 2014-2016 Raul Mur-Artal, University of Zaragoza." << endl <<
     "This program comes with ABSOLUTELY NO WARRANTY;" << endl  <<
     "This is free software, and you are welcome to redistribute it" << endl <<
-    "under certain conditions. See LICENSE.txt." << endl << endl;
+    "under certain conditions. See LICENSE.txt." << endl;
 
     cout << "Input sensor was set to: ";
+
 
     if(mSensor==MONOCULAR)
         cout << "Monocular" << endl;
@@ -68,7 +68,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     else if(mSensor==RGBD)
         cout << "RGB-D" << endl;
 
-    //Check settings file
+	//Check settings file
     cv::FileStorage fsSettings(strSettingsFile.c_str(), cv::FileStorage::READ);
     if(!fsSettings.isOpened())
     {
@@ -107,7 +107,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     //Initialize the Tracking thread
     //(it will live in the main thread of execution, the one that called this constructor)
     mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
-                             mpMap, mpKeyFrameDatabase, strSettingsFile, mSensor, minDistanceToObject, strScalingType);
+                             mpMap, mpKeyFrameDatabase, strSettingsFile, mSensor);
 
     //Initialize the Local Mapping thread and launch
     mpLocalMapper = new LocalMapping(mpMap, mSensor==MONOCULAR);
@@ -317,8 +317,13 @@ bool System::MapChanged()
 
 void System::Reset()
 {
-    unique_lock<mutex> lock(mMutexReset);
+	unique_lock<mutex> lock(mMutexReset);;
     mbReset = true;
+}
+
+void System::SetScalingParams(const float minDistanceToObject, eScalingType scalingType, const float tag_centre_x, const float tag_centre_y)
+{
+	mpTracker->SetScalingParams(minDistanceToObject, scalingType, tag_centre_x, tag_centre_y);
 }
 
 void System::Shutdown()
