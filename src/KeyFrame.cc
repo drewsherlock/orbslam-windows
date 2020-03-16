@@ -52,7 +52,6 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
         for(int j=0; j<mnGridRows; j++)
             mGrid[i][j] = F.mGrid[i][j];
     }
-
     SetPose(F.mTcw);    
 }
 
@@ -686,7 +685,7 @@ float KeyFrame::ComputeSceneMinDepth()
 			MapPoint* pMP = mvpMapPoints[i];
 			cv::Mat x3Dw = pMP->GetWorldPos();
 			float z = Rcw2.dot(x3Dw) + zcw;
-			cout << "z: " << z << endl;
+			//cout << "z: " << z << endl;
 			vDepths.push_back(z);
 		}
 	}
@@ -708,6 +707,7 @@ float KeyFrame::ComputeSceneLikelyMinDepth()
 		Tcw_ = Tcw.clone();
 	}
 
+
 	vector<float> vDepths;
 	vDepths.reserve(N);
 	cv::Mat Rcw2 = Tcw_.row(2).colRange(0, 3);
@@ -720,10 +720,11 @@ float KeyFrame::ComputeSceneLikelyMinDepth()
 			MapPoint* pMP = mvpMapPoints[i];
 			cv::Mat x3Dw = pMP->GetWorldPos();
 			float z = Rcw2.dot(x3Dw) + zcw;
-			cout << "z: " << z << endl;
+			//cout << "Z " << z << endl;
 			vDepths.push_back(z);
 		}
 	}
+
 
 	sort(vDepths.begin(), vDepths.end());
 
@@ -748,6 +749,82 @@ float KeyFrame::ComputeSceneLikelyMinDepth()
 	cout << "likely min depth:" << vDepths[N-1] << endl;
 
 	return vDepths[N - 1];
+}
+
+float KeyFrame::ComputeSceneTagDepth(const float &x, const float &y)
+{
+	cout << "here...tag depth" << endl;
+	vector<MapPoint*> vpMapPoints;
+	cv::Mat Tcw_;
+	{
+		unique_lock<mutex> lock(mMutexFeatures);
+		unique_lock<mutex> lock2(mMutexPose);
+		vpMapPoints = mvpMapPoints;
+		Tcw_ = Tcw.clone();
+	}
+
+
+	vector<float> vDepths;
+	vDepths.reserve(N);
+	cv::Mat Rcw2 = Tcw_.row(2).colRange(0, 3);
+	Rcw2 = Rcw2.t();
+	float zcw = Tcw_.at<float>(2, 3);
+	int indexClosestToTagCentre = -1;
+	float closestDistanceToTagCentre = std::numeric_limits<float>::max();
+	float closestDepthToTagCentre = std::numeric_limits<float>::max();
+
+	FILE * pFile;
+	pFile = fopen("kf.log", "w");
+	fprintf(pFile, "x: %4.3f\n", x);
+	fprintf(pFile, "y: %4.3f\n", y);
+
+
+	for (int i = 0; i < N; i++)
+	{
+		if (mvpMapPoints[i])
+		{
+			MapPoint* pMP = mvpMapPoints[i];
+			cv::Mat x3Dw = pMP->GetWorldPos();
+			float z = Rcw2.dot(x3Dw) + zcw;
+			vDepths.push_back(z);
+
+			const cv::KeyPoint &kpUn = mvKeysUn[i];
+			const float px = kpUn.pt.x;
+			const float py = kpUn.pt.y;
+
+			const float distx = px - x;
+			const float disty = py - y;
+			const float dist = std::sqrt(distx * distx + disty * disty);
+
+			fprintf(pFile, "i: %i\n", i);
+			fprintf(pFile, "px: %4.3f\n", px);
+			fprintf(pFile, "py: %4.3f\n", py);
+			fprintf(pFile, "distx: %4.3f\n", distx);
+			fprintf(pFile, "disty: %4.3f\n", disty);
+			fprintf(pFile, "dist: %4.3f\n", dist);
+			fprintf(pFile, "indexClosestToTagCentre: %i\n", indexClosestToTagCentre);
+			fprintf(pFile, "closestDistanceToTagCentre: %4.3f\n", closestDistanceToTagCentre);
+			fprintf(pFile, "closestDepthToTagCentre: %4.3f\n", closestDepthToTagCentre);
+			fprintf(pFile, "\n");
+
+			
+			if (dist < closestDistanceToTagCentre)
+			{
+				indexClosestToTagCentre = i;
+				closestDistanceToTagCentre = dist;
+				closestDepthToTagCentre = z;
+			}
+		}
+	}
+
+	fprintf(pFile, "indexClosestToTagCentre: %i\n", indexClosestToTagCentre);
+	fprintf(pFile, "closestDistanceToTagCentre: %4.3f\n", closestDistanceToTagCentre);
+	fprintf(pFile, "closestDepthToTagCentre: %4.3f\n", closestDepthToTagCentre);
+	fprintf(pFile, "\n");
+
+	fclose(pFile);
+	
+	return closestDepthToTagCentre;
 }
 
 } //namespace ORB_SLAM

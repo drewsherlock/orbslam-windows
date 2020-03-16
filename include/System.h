@@ -36,6 +36,7 @@
 #include "KeyFrameDatabase.h"
 #include "ORBVocabulary.h"
 #include "Viewer.h"
+#include "ScalingType.h"
 
 
 // From http://stackoverflow.com/questions/5801813/c-usleep-is-obsolete-workarounds-for-windows-mingw
@@ -52,6 +53,8 @@ class Tracking;
 class LocalMapping;
 class LoopClosing;
 
+
+
 class System
 {
 public:
@@ -65,8 +68,7 @@ public:
 public:
 
     // Initialize the SLAM system. It launches the Local Mapping, Loop Closing and Viewer threads.
-    System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor, const bool bUseViewer = true, const float minDistanceToObject = -1.0,const string& strScalingType = "median");
-
+    System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor, const bool bUseViewer = true);
     // Proccess the given stereo frame. Images must be synchronized and rectified.
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Returns the camera pose (empty if tracking fails).
@@ -128,7 +130,11 @@ public:
     std::vector<MapPoint*> GetTrackedMapPoints();
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
+	//Min distance to object to allow scaling
+	void SetScalingParams(const float minDistanceToObject = -1.0, eScalingType scalingType = MEDIAN, const float tag_centre_x = -1, const float tag_centre_y = -1);
+	
 private:
+
 
     // Input sensor
     eSensor mSensor;

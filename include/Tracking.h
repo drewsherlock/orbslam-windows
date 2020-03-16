@@ -37,6 +37,7 @@
 #include "Initializer.h"
 #include "MapDrawer.h"
 #include "System.h"
+#include "ScalingType.h"
 
 #include <mutex>
 
@@ -51,12 +52,10 @@ class LoopClosing;
 class System;
 
 class Tracking
-{  
-
+{ 
 public:
     Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Map* pMap,
-             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const float minDistanceToObject = -1, const string& strScalingType = "median");
-
+             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor);
     // Preprocess the input and call Track(). Extract features and performs stereo matching.
     cv::Mat GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp);
     cv::Mat GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp);
@@ -110,10 +109,12 @@ public:
     list<double> mlFrameTimes;
     list<bool> mlbLost;
 
-    // True if local mapping is deactivated and we are performing only localization
+    // True if local mapping is deactivated and we are performing only localization 
     bool mbOnlyTracking;
 
     void Reset();
+	void SetScalingParams(const float minDistanceToObject = -1.0, eScalingType scalingType = LIKELY, const float tag_centre_x = -1, const float tag_centre_y = -1);
+
 
 protected:
 
@@ -202,8 +203,10 @@ protected:
     int mnMatchesInliers;
 
 	//Min distnace to object to allow scaling
-	float mMinDistanceToObject;
-	const string &mStrScalingType;
+	float mMinDistanceToObject = -1;
+	eScalingType mScalingType = MEDIAN;
+	float mTag_centre_x = -1;
+	float mTag_centre_y = -1;
 
     //Last Frame, KeyFrame and Relocalisation Info
     KeyFrame* mpLastKeyFrame;
